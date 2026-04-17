@@ -1,0 +1,73 @@
+SELECT
+T0.DocEntry,
+T0.DocNum,
+T0.ObjType,
+'Cotação de Vendas' AS TipoDocumento,
+T0.DocDate,
+T5.SlpName,
+T2.CardCode,
+T2.CardName,
+ISNULL(T6.TaxId0, T6.TaxId4) AS [CPF/CNPJ],
+T6.AddrTypeS,
+T6.StreetS,
+T6.StreetNoS,
+T6.BlockS,
+T6.CityS,
+T6.StateS,
+T6.ZipCodeS,
+T6.Carrier AS CodTransportadora,
+T3.Name,
+T2.Phone1,
+T2.Phone2,
+T7.ItemCode,
+T7.ItemName,
+T1.Quantity,
+T7.BuyUnitMsr,
+T1.Price,
+T1.LineTotal,
+T7.UserText,
+T4.PymntGroup,
+T12.U_NAME,
+T1.LineNum,
+T0.TrnspCode,
+T15.TrnspName AS TipoFrete,
+T0.Weight,
+T2.Cellular,
+T2.E_Mail,
+T7.SalUnitMsr,
+ISNULL(T13.LineTotal, 0) AS Frete,
+T0.DiscSum,
+T0.DiscPrcnt,
+T0.Comments,
+T0.BplId,
+T14.[Usage],
+T0.DocTotal,
+T0.VatSum
+FROM OQUT T0
+INNER JOIN QUT1 T1
+ON T0.DocEntry = T1.DocEntry
+INNER JOIN OCRD T2
+ON T0.CardCode = T2.CardCode
+LEFT JOIN OCPR T3
+ON T0.CntctCode = T3.CntctCode
+LEFT JOIN OCTG T4
+ON T0.GroupNum = T4.GroupNum
+INNER JOIN OSLP T5
+ON T0.SlpCode = T5.SlpCode
+INNER JOIN QUT12 T6
+ON T0.DocEntry = T6.DocEntry
+INNER JOIN OITM T7
+ON T1.ItemCode = T7.ItemCode
+LEFT JOIN OUSR T12
+ON T0.UserSign = T12.INTERNAL_K
+LEFT JOIN QUT3 T13
+ON T0.DocEntry = T13.DocEntry
+AND T13.ExpnsCode = 3
+LEFT JOIN OUSG T14
+ON T1.Usage = T14.ID
+LEFT JOIN OSHP T15
+ON T0.TrnspCode = T15.TrnspCode
+WHERE T0.DocEntry = {?DocKey@}
+AND T0.ObjType = {?ObjectId@}
+ORDER BY T1.Número da Linha
+
