@@ -1,0 +1,71 @@
+Select
+
+T0.DocEntry, 
+T0.ObjType, 
+T0.DocDate, 
+T0.DocDueDate,
+T5.SlpName, 
+T2.CardCode, 
+T2.CardName, 
+ISNULL(T6.TaxId0,T6.TaxId4)'CPF/CNPJ',
+T6.TaxId1, 
+T6.AddrTypeS, 
+T6.StreetS, 
+T6.StreetNoS, 
+T6.BlockS,
+T6.CityS, 
+T6.StateS,
+T6.ZipCodeS, 
+T3.Name, 
+T2.Phone1,
+T2.Phone2,
+T7.ItemCode, 
+T7.ItemName, 
+T1.Quantity, 
+T7.BuyUnitMsr, 
+T1.Price, 
+T1.LineTotal, 
+T7.UserText,
+T4.PymntGroup, 
+T1.LineNum,
+T0.TrnspCode,
+T16.TrnspName,
+T0.Weight,
+T2.Cellular,
+T2.E_Mail,
+T7.SalUnitMsr,
+Isnull(T13.LineTotal,0) Frete,
+Isnull(T18.LineTotal,0) Juros,
+T0.DiscSum,
+T0.DiscPrcnt,
+T0.Comments,
+T0.BplId,
+T6.Carrier,
+T14.CardName CarrierName,
+T15.Usage
+
+
+
+From ORDR T0
+Inner Join RDR1 T1 on T0.DocEntry=T1.DocEntry
+Inner Join OCRD T2 on T0.CardCode=T2.CardCode
+Left join OCPR T3 on T0.CntctCode=T3.CntctCode
+Left Join OCTG T4 on T0.GroupNum=T4.GroupNum
+Inner Join OSLP T5 on T0.SlpCode=T5.SlpCode
+Inner Join RDR12 T6 on T0.DocEntry=T6.DocEntry
+Inner Join OITM T7 on T1.ItemCode=T7.ItemCode
+Left Join RDR3 T13 on T0.DocEntry = T13.DocEntry and T13.ExpnsCode = 3
+Left Join OCRD T14 on T6.Carrier = T14.CardCode
+Left Join OUSG T15 on T6.MainUsage = T15.ID
+Left Join OSHP T16 on T0.TrnspCode = T16.TrnspCode
+Left Join RDR3 T18 on T0.DocEntry = T18.DocEntry and T18.ExpnsCode = 11
+
+Where 
+T0.DocEntry = {?DocKey@}
+and T0.ObjType = {?ObjectId@}
+and T1.TreeType <> 'T'
+
+Order By   
+T1.LineNum;
+
+
