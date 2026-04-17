@@ -1,0 +1,168 @@
+WITH R1_BASE AS
+(
+    SELECT
+        R1.DocEntry,
+        R1.LineNum,
+        R1.ItemCode,
+        R1.Quantity,
+        R1.OpenQty,
+        R1.Price,
+        R1.LineStatus
+    FROM RDR1 R1
+    WHERE R1.DocEntry = {?DocKey@}
+      AND R1.LineStatus = 'O'
+      AND R1.OpenQty > 0
+      AND R1.Price > 0
+),
+DOC_TOTAL AS
+(
+    SELECT
+        DocEntry,
+        SUM(Quantity * Price) AS ValorProdutosOriginal,
+        SUM(OpenQty * Price) AS ValorProdutosAberto
+    FROM R1_BASE
+    GROUP BY DocEntry
+),
+CRD11_ULT AS
+(
+    SELECT
+        C11.CardCode,
+        C11.TributType,
+        ROW_NUMBER() OVER
+        (
+            PARTITION BY C11.CardCode
+            ORDER BY ISNULL(C11.TTStartDat, '19000101') DESC
+        ) AS RN
+    FROM CRD11 C11
+),
+BASE AS
+(
+    SELECT
+        T0.DocEntry,
+        T0.ObjType,
+        T0.DocDate,
+        T0.DocDueDate,
+        T5.SlpName,
+        T2.CardCode,
+        T2.CardName,
+        COALESCE(NULLIF(T2.LicTradNum,''), NULLIF(T6.TaxId0,''), NULLIF(T6.TaxId4,'')) AS [CPF/CNPJ],
+        T6.TaxId1,
+        T6.AddrTypeS,
+        T6.StreetS,
+        T6.StreetNoS,
+        T6.BlockS,
+        T6.CityS,
+        T6.StateS,
+        T6.ZipCodeS,
+        T3.Name,
+        T2.Phone1,
+        T2.Phone2,
+        T7.ItemCode,
+        T7.ItemName,
+        R1.OpenQty AS Quantity,
+        T7.BuyUnitMsr,
+        T7.SalUnitMsr,
+        R1.Price,
+        (R1.OpenQty * R1.Price) AS LineTotal,
+        T7.UserText,
+        T4.PymntGroup,
+        R1.LineNum,
+        T0.TrnspCode,
+        T16.TrnspName,
+        T0.Weight,
+        T2.Cellular,
+        T2.E_Mail,
+        ISNULL(T13.LineTotal,0) AS Frete,
+        ISNULL(T18.LineTotal,0) AS Juros,
+        T0.DiscSum AS DiscSumOriginal,
+        T0.DiscPrcnt AS DiscPrcntOriginal,
+        T0.Comments,
+        T0.BplId,
+        T6.Carrier,
+        T14.CardName AS CarrierName,
+        T15.[Usage],
+        R1.Quantity AS QtyOriginal,
+        R1.OpenQty AS QtyEmAberto,
+        DT.ValorProdutosOriginal,
+        DT.ValorProdutosAberto,
+        ISNULL(CU.TributType, 0) AS TributType
+    FROM ORDR T0
+    INNER JOIN R1_BASE R1 ON T0.DocEntry = R1.DocEntry
+    INNER JOIN OCRD T2 ON T0.CardCode = T2.CardCode
+    LEFT JOIN OCPR T3 ON T0.CntctCode = T3.CntctCode
+    LEFT JOIN OCTG T4 ON T0.GroupNum = T4.GroupNum
+    INNER JOIN OSLP T5 ON T0.SlpCode = T5.SlpCode
+    INNER JOIN RDR12 T6 ON T0.DocEntry = T6.DocEntry
+    INNER JOIN OITM T7 ON R1.ItemCode = T7.ItemCode
+    LEFT JOIN RDR3 T13 ON T0.DocEntry = T13.DocEntry AND T13.ExpnsCode = 3
+    LEFT JOIN OCRD T14 ON T6.Carrier = T14.CardCode
+    LEFT JOIN OUSG T15 ON T6.MainUsage = T15.ID
+    LEFT JOIN OSHP T16 ON T0.TrnspCode = T16.TrnspCode
+    LEFT JOIN RDR3 T18 ON T0.DocEntry = T18.DocEntry AND T18.ExpnsCode = 11
+    LEFT JOIN DOC_TOTAL DT ON T0.DocEntry = DT.DocEntry
+    LEFT JOIN CRD11_ULT CU ON T2.CardCode = CU.CardCode AND CU.RN = 1
+    WHERE T0.DocEntry = {?DocKey@}
+      AND T0.ObjType = {?ObjectId@}
+),
+CALC AS
+(
+    SELECT
+        BASE.*,
+        ROUND(
+            CASE
+                WHEN ISNULL(BASE.ValorProdutosOriginal,0) = 0 THEN 0
+                ELSE (BASE.ValorProdutosAberto / BASE.ValorProdutosOriginal) * ISNULL(BASE.DiscSumOriginal,0)
+            END
+        ,2) AS DiscSumAberto,
+        CASE
+            WHEN BASE.TributType = 1 THEN 'Contribuinte'
+            WHEN BASE.TributType = 2 THEN 'Não Contribuinte'
+            ELSE ''
+        END AS TributTypeDesc
+    FROM BASE
+)
+SELECT
+    CALC.*,
+    ROUND(
+        CASE
+            WHEN ISNULL(CALC.ValorProdutosAberto,0) = 0 THEN 0
+            ELSE (CALC.LineTotal / CALC.ValorProdutosAberto) * CALC.DiscSumAberto
+        END
+    ,2) AS DescLinhaAberto,
+    ROUND(
+        CASE
+            WHEN ISNULL(CALC.Quantity,0) = 0 THEN 0
+            ELSE
+                (
+                    CASE
+                        WHEN ISNULL(CALC.ValorProdutosAberto,0) = 0 THEN 0
+                        ELSE (CALC.LineTotal / CALC.ValorProdutosAberto) * CALC.DiscSumAberto
+                    END
+                ) / CALC.Quantity
+        END
+    ,4) AS DescUnitario,
+    ROUND(
+        CALC.Price -
+        CASE
+            WHEN ISNULL(CALC.Quantity,0) = 0 THEN 0
+            ELSE
+                (
+                    CASE
+                        WHEN ISNULL(CALC.ValorProdutosAberto,0) = 0 THEN 0
+                        ELSE (CALC.LineTotal / CALC.ValorProdutosAberto) * CALC.DiscSumAberto
+                    END
+                ) / CALC.Quantity
+        END
+    ,4) AS ValorUnitarioLiquido,
+    ROUND(
+        CALC.LineTotal -
+        CASE
+            WHEN ISNULL(CALC.ValorProdutosAberto,0) = 0 THEN 0
+            ELSE (CALC.LineTotal / CALC.ValorProdutosAberto) * CALC.DiscSumAberto
+        END
+    ,2) AS LineTotalLiquido,
+    ROUND(
+        CALC.ValorProdutosAberto - CALC.DiscSumAberto + CALC.Frete + CALC.Juros
+    ,2) AS TotalAberto
+FROM CALC
+ORDER BY CALC.LineNum;
